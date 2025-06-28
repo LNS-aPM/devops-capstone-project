@@ -15,6 +15,7 @@ spec:
     - name: repo-url
     - name: branch
       default: main
+    - name: build-image
   tasks:
     - name: init
       workspaces:
@@ -36,31 +37,45 @@ spec:
         value: $(params.branch)
       runAfter:
         - init
-    
+
     - name: lint
       workspaces:
-        - name: source
+        - name: source  # Must match defined YAML workspace name of flake8
           workspace: pipeline-workspace
       taskRef:
         name: flake8
       params:
       - name: image
-        value: "python:3.9-slim"
+        value: python:3.9-slim
       - name: args
-        value: ["--count","--max-complexity=10","--max-line-length=127","--statistics"]
+        value: ["--count", "--max-complexity=10", "--max-line-length=127", "--statistics"]
       runAfter:
         - clone
 
     - name: tests
       workspaces:
         - name: source
-        workspace: pipeline-workspace
+          workspace: pipeline-workspace
       taskRef:
-        name: nose
+        name: tests
       params:
-      - name: database_uri
-        value: "sqlite:///test.db"
       - name: args
-        value: "-v --with-spec --spec-color"
+        value: -v --with-spec --spec-color
+      - name: database_uri
+        value: sqlite:///test.db
       runAfter:
         - clone
+        
+    - name: build
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+      - name: IMAGE
+        value: "$(params.build-image)"
+      runAfter:
+        - tests
+        - lint
